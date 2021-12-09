@@ -140,7 +140,7 @@ STEPS:
 - 1 - 
 '''
 
-
+[[ATTEMPT 3]]
 """
 CLEAN_BDT.PY test file
 """
@@ -153,7 +153,7 @@ import glob
 
 
 #ensure timestamps are within reason
-def validate_timestamps(df, threshold_date):
+def validate_timestamps(df):
 
     lower_qrt = df['time2'].quantile(0.1) #lower 10%
     upper_qrt = df['time2'].quantile(0.9) #higher 10%
@@ -213,10 +213,34 @@ def tester (df):
 
 
 #collate each of the files by element
-air_files = glob.glob(r"D:\sample_biodiversitree\data\air_data\**\*.csv", recursive=True)
-soil_files = glob.glob(r"D:\sample_biodiversitree\data\soil_data\**\*.csv", recursive=True)
+all_files = glob.glob(r"D:\sample_biodiversitree\data\export_data\**\**\*.csv", recursive=True)
 
-#put the cleaned export files in their respective folder
-#put the error dataframes in their respective folders to be used later
-    
+# -- for the automation pipeline
+#air_files = glob.glob(r"D:\sample_biodiversitree\data\export_data\air_data\**\*.csv", recursive=True)
+#soil_files = glob.glob(r"D:\sample_biodiversitree\data\export_data\soil_data\**\*.csv", recursive=True)
 
+#iterate through the cleaning system
+for file_path in all_files:
+    dateCols = ['time2']
+    bdt_df = pd.read_csv(file_path, parse_dates=dateCols, low_memory=True)
+    #air_df = pd.concat(map(pd.read_csv, air_files), ignore_index=True) --change this for when the data is of the automation pipeline
+    #soil_df = pd.concat(map(pd.read_csv, soil_files), ignore_index=True) --change this for when the data is for the automation pipeline
+    if 'airtemp' in bdt_df.columns():
+        cols = ['airtemp','cleanrh', 'rawrh', 'svp', 'vp',	'vpd',	'batt_volt']
+    else:
+        cols = ['sal','temp','vwc','batt_volt']
+    #drop the outlier values and store errors
+    bdt_df, outlier_vals = drop_outliers(bdt_df, cols)
+    #fix the diversity values
+    bdt_df = correct_labels(bdt_df)
+    #fix null values
+    bdt_df, nan_val_rows = fix_nulls(bdt_df)
+    #validate the right timestamps
+    bdt_df, invalid_time_rows = validate_timestamps(bdt_df)
+
+    #put the cleaned export files in their respective folder
+    bdt_df.to_csv(file_path, index= False, header = True)
+
+    #put the error dataframes in their respective folders to be used later
+    errors = pd.concat([outlier_vals, nan_val_rows, invalid_time_rows])
+    errors.to_csv(r"D:\sample_biodiversitree\data\export_data\error_reports", "error_report_rows.csv",index= False, header = True, mode='a')
