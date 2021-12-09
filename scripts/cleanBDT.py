@@ -141,6 +141,82 @@ STEPS:
 '''
 
 
+"""
+CLEAN_BDT.PY test file
+"""
 
+#imports
+import os
+import pandas as pd
+import numpy as np
+import glob
+
+
+#ensure timestamps are within reason
+def validate_timestamps(df, threshold_date):
+
+    lower_qrt = df['time2'].quantile(0.1) #lower 10%
+    upper_qrt = df['time2'].quantile(0.9) #higher 10%
+
+    #drop dates that are not within the threshold
+    invalid_time_rows = df[(df['time2'] < lower_qrt) & (df['DATE'] > upper_qrt)]
+    invalid_time_rows['error type'] = 'invalid_time_rows'
+
+    df = df[(df['time2'] >= lower_qrt) & (df['DATE'] <= upper_qrt)]
+
+    #drop duplicated values
+    df.drop_duplicates(subset=['time2'])
+
+    return df, invalid_time_rows
+
+#replace NA values with null values
+def fix_nulls(df):
+
+    nan_val_rows = df[(df == 'NA').any(axis=1)]
+    nan_val_rows['error type'] = 'nan_val_rows'
+    df.replace('NA', np.nan)
+
+    return df, nan_val_rows
+
+#fix the div values that come in as text, rather than as integers
+def correct_labels(df):
+
+    df['div'] = df['div'].replace(['forest', 'field','nr'], [13, 14, 15])
+
+    return df
+
+#define the interquartile range
+def drop_outliers(df, cols):
+
+    Q1 = df[cols].quantile(0.25)
+    Q3 = df[cols].quantile(0.75)
+    IQR = Q3 - Q1
+
+    outlier_values = df[((df[cols] < (Q1 - 1.5 * IQR)) |(df[cols] > (Q3 + 1.5 * IQR))).any(axis=1)]
+    outlier_values['error type'] = 'outlier values'
+
+    df = df[((df[cols] >= (Q1 - 1.5 * IQR)) |(df[cols] <= (Q3 + 1.5 * IQR))).any(axis=1)]
+
+    return df, outlier_values
+
+# find any outlier values 
+def tester (df):
+
+    if 'airtemp' in df.columns():
+        cols = ['airtemp','cleanrh', 'rawrh', 'svp', 'vp',	'vpd',	'batt_volt']
+        df, outlier_vals = drop_outliers(df, cols)
+    else:
+        cols = ['sal','temp','vwc','batt_volt']
+        df, outlier_vals = drop_outliers(df, cols)
+
+    return ''
+
+
+#collate each of the files by element
+air_files = glob.glob(r"D:\sample_biodiversitree\data\air_data\**\*.csv", recursive=True)
+soil_files = glob.glob(r"D:\sample_biodiversitree\data\soil_data\**\*.csv", recursive=True)
+
+#put the cleaned export files in their respective folder
+#put the error dataframes in their respective folders to be used later
     
 
